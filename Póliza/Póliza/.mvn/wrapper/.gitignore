@@ -1,0 +1,2 @@
+# Ejecutar aplicación Poliza
+mvn spring-boot:run

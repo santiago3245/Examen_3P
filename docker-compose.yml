@@ -1,0 +1,142 @@
+version: '3.8'
+
+services:
+  # MySQL for Poliza
+  mysql-poliza:
+    image: mysql:8.0
+    container_name: mysql-poliza
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: polizadb
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-poliza-data:/var/lib/mysql
+    networks:
+      - siniestros-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MySQL for Proveedor
+  mysql-proveedor:
+    image: mysql:8.0
+    container_name: mysql-proveedor
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: proveedordb
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-proveedor-data:/var/lib/mysql
+    networks:
+      - siniestros-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL for Siniestro
+  postgres-siniestro:
+    image: postgres:15-alpine
+    container_name: postgres-siniestro
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: siniestrodb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-siniestro-data:/var/lib/postgresql/data
+    networks:
+      - siniestros-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Poliza Service
+  poliza-service:
+    build:
+      context: ./Póliza/Póliza
+      dockerfile: Dockerfile
+    container_name: poliza-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-poliza:3306/polizadb?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: rootpassword
+    depends_on:
+      mysql-poliza:
+        condition: service_healthy
+    networks:
+      - siniestros-network
+    restart: unless-stopped
+
+  # Proveedor Service
+  proveedor-service:
+    build:
+      context: ./Proveedor/Proveedor
+      dockerfile: Dockerfile
+    container_name: proveedor-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-proveedor:3306/proveedordb?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: rootpassword
+    depends_on:
+      mysql-proveedor:
+        condition: service_healthy
+    networks:
+      - siniestros-network
+    restart: unless-stopped
+
+  # Siniestro Service
+  siniestro-service:
+    build:
+      context: ./Siniestro
+      dockerfile: Dockerfile
+    container_name: siniestro-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-siniestro:5432/siniestrodb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgrespassword
+    depends_on:
+      postgres-siniestro:
+        condition: service_healthy
+    networks:
+      - siniestros-network
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - poliza-service
+      - proveedor-service
+      - siniestro-service
+    networks:
+      - siniestros-network
+    restart: unless-stopped
+
+networks:
+  siniestros-network:
+    driver: bridge
+
+volumes:
+  mysql-poliza-data:
+  mysql-proveedor-data:
+  postgres-siniestro-data:
