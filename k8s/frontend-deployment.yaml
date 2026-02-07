@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: santiagoarroyo/frontendP3:latest
+        image: santiagoarroyo/frontendp3:latest
         ports:
         - containerPort: 80
         livenessProbe:
